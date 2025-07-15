@@ -485,28 +485,31 @@ func getDatabaseStats() DatabaseStats {
 		PopularArticles: []models.ArticleDocument{},
 	}
 	
+	ctx := context.Background()
+	
 	// 總文章數
-	if count, err := meta.Collection.Count(); err == nil {
-		stats.TotalArticles = int64(count)
+	if count, err := meta.Collection.CountDocuments(ctx, bson.M{}); err == nil {
+		stats.TotalArticles = count
 	}
 	
 	// 今日文章數
 	today := time.Now().Truncate(24 * time.Hour)
 	todayTimestamp := int(today.Unix())
-	if count, err := meta.Collection.Find(bson.M{"timestamp": bson.M{"$gte": todayTimestamp}}).Count(); err == nil {
-		stats.TodayArticles = int64(count)
+	if count, err := meta.Collection.CountDocuments(ctx, bson.M{"timestamp": bson.M{"$gte": todayTimestamp}}); err == nil {
+		stats.TodayArticles = count
 	}
 	
 	// 本週文章數
 	weekAgo := time.Now().AddDate(0, 0, -7)
 	weekTimestamp := int(weekAgo.Unix())
-	if count, err := meta.Collection.Find(bson.M{"timestamp": bson.M{"$gte": weekTimestamp}}).Count(); err == nil {
-		stats.WeekArticles = int64(count)
+	if count, err := meta.Collection.CountDocuments(ctx, bson.M{"timestamp": bson.M{"$gte": weekTimestamp}}); err == nil {
+		stats.WeekArticles = count
 	}
 	
 	// 最後更新時間（最新文章的時間）
 	var latestArticle models.ArticleDocument
-	if err := meta.Collection.Find(bson.M{}).Sort("-timestamp").One(&latestArticle); err == nil {
+	opts := options.FindOne().SetSort(bson.D{{"timestamp", -1}})
+	if err := meta.Collection.FindOne(ctx, bson.M{}, opts).Decode(&latestArticle); err == nil {
 		stats.LastUpdateTime = time.Unix(int64(latestArticle.Timestamp), 0)
 	}
 	

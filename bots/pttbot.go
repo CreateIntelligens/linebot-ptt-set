@@ -1,6 +1,8 @@
 package bots
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,13 +12,13 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/line/line-bot-sdk-go/linebot"
-	"github.com/mong0520/linebot-ptt-set/admin"
 	"github.com/mong0520/linebot-ptt-set/controllers"
 	"github.com/mong0520/linebot-ptt-set/models"
 	"github.com/mong0520/linebot-ptt-set/utils"
-	"gopkg.in/mgo.v2/bson"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 var bot *linebot.Client
@@ -62,9 +64,9 @@ func InitLineBot(m *models.Model, runMode string, sslCertPath string, sslPKeyPat
 	//log.Println("Bot:", bot, " err:", err)
 	http.HandleFunc("/callback", callbackHandler)
 	http.HandleFunc("/health", healthHandler)
-	
-	// 初始化管理面板
-	admin.InitAdmin(meta)
+	http.HandleFunc("/api/stats", statsHandler)
+	http.HandleFunc("/api/articles", articlesHandler)
+	http.HandleFunc("/", dashboardHandler)
 	port := os.Getenv("PORT")
 	//port := "8080"
 	addr := fmt.Sprintf(":%s", port)
@@ -86,6 +88,307 @@ func InitLineBot(m *models.Model, runMode string, sslCertPath string, sslPKeyPat
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(200)
+}
+
+func dashboardHandler(w http.ResponseWriter, r *http.Request) {
+	// 只處理根路徑，避免攔截API路由
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	html := `
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PTT SET Bot 數據面板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; text-align: center; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        .card h3 { color: #333; margin-bottom: 15px; font-size: 1.3em; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .stat { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px; }
+        .stat-label { font-weight: 500; color: #666; }
+        .stat-value { font-weight: bold; color: #333; font-size: 1.2em; }
+        .loading { text-align: center; padding: 20px; color: #666; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: all 0.2s; background: #007bff; color: white; }
+        .btn:hover { opacity: 0.8; transform: translateY(-1px); }
+        .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        .table th { background: #f8f9fa; font-weight: 600; }
+        .table tr:hover { background: #f5f5f5; }
+        .article-title { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .push-count { color: #28a745; font-weight: bold; }
+        .boo-count { color: #dc3545; font-weight: bold; }
+        .status-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; background: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 PTT SET Bot 數據面板</h1>
+            <p>監控爬蟲狀態 • 查看數據統計 • 系統管理</p>
+        </div>
+
+        <div class="dashboard">
+            <!-- 系統狀態 -->
+            <div class="card">
+                <h3>⚙️ 系統狀態</h3>
+                <div class="stat">
+                    <span class="stat-label">
+                        <span class="status-indicator"></span>
+                        MongoDB連接
+                    </span>
+                    <span class="stat-value">正常</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">應用程式狀態</span>
+                    <span class="stat-value">運行中</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">端口</span>
+                    <span class="stat-value">5050</span>
+                </div>
+            </div>
+
+            <!-- 數據庫統計 -->
+            <div class="card">
+                <h3>📊 數據庫統計</h3>
+                <div id="db-stats" class="loading">載入中...</div>
+                <button class="btn" onclick="refreshStats()">刷新統計</button>
+            </div>
+
+            <!-- 快速操作 -->
+            <div class="card">
+                <h3>🚀 快速操作</h3>
+                <div class="stat">
+                    <span class="stat-label">健康檢查</span>
+                    <button class="btn" onclick="checkHealth()">檢查</button>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">查看日誌</span>
+                    <button class="btn" onclick="viewLogs()">查看</button>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">爬蟲狀態</span>
+                    <button class="btn" onclick="checkCrawler()">檢查</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 最新文章 -->
+        <div class="card">
+            <h3>📰 最新文章</h3>
+            <div id="articles-list" class="loading">載入中...</div>
+            <button class="btn" onclick="refreshArticles()">刷新列表</button>
+        </div>
+    </div>
+
+    <script>
+        // 載入統計數據
+        function loadStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    updateStats(data);
+                })
+                .catch(error => {
+                    console.error('Error loading stats:', error);
+                    document.getElementById('db-stats').innerHTML = '<div class="stat"><span class="stat-label">錯誤</span><span class="stat-value">無法載入數據</span></div>';
+                });
+        }
+
+        // 更新統計顯示
+        function updateStats(stats) {
+            const statsHtml = ` + "`" + `
+                <div class="stat">
+                    <span class="stat-label">總文章數</span>
+                    <span class="stat-value">${stats.total_articles || 0}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">今日新增</span>
+                    <span class="stat-value">${stats.today_articles || 0}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">本週新增</span>
+                    <span class="stat-value">${stats.week_articles || 0}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">最後更新</span>
+                    <span class="stat-value">${formatTime(stats.last_update)}</span>
+                </div>
+            ` + "`" + `;
+            document.getElementById('db-stats').innerHTML = statsHtml;
+        }
+
+        // 載入文章列表
+        function loadArticles() {
+            fetch('/api/articles?limit=15')
+                .then(response => response.json())
+                .then(data => {
+                    updateArticlesList(data);
+                })
+                .catch(error => {
+                    console.error('Error loading articles:', error);
+                    document.getElementById('articles-list').innerHTML = '<div class="loading">無法載入文章數據</div>';
+                });
+        }
+
+        // 更新文章列表顯示
+        function updateArticlesList(articles) {
+            if (!articles || articles.length === 0) {
+                document.getElementById('articles-list').innerHTML = '<div class="loading">暫無文章數據</div>';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr><th>標題</th><th>作者</th><th>日期</th><th>推/噓</th><th>圖片</th><th>連結</th></tr></thead><tbody>';
+            
+            articles.forEach(article => {
+                const title = article.article_title || '無標題';
+                const author = article.author || '未知';
+                const date = article.date || '未知';
+                const pushCount = article.message_count ? article.message_count.push || 0 : 0;
+                const booCount = article.message_count ? article.message_count.boo || 0 : 0;
+                const imageCount = article.image_links ? article.image_links.length : 0;
+                const url = article.url || '#';
+                
+                html += ` + "`" + `<tr>
+                    <td class="article-title" title="${title}">${title.length > 40 ? title.substring(0, 40) + '...' : title}</td>
+                    <td>${author}</td>
+                    <td>${date}</td>
+                    <td><span class="push-count">${pushCount}</span>/<span class="boo-count">${booCount}</span></td>
+                    <td>${imageCount}</td>
+                    <td><a href="${url}" target="_blank" class="btn" style="padding: 5px 10px; font-size: 12px;">查看</a></td>
+                </tr>` + "`" + `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('articles-list').innerHTML = html;
+        }
+
+        // 刷新統計
+        function refreshStats() {
+            document.getElementById('db-stats').innerHTML = '<div class="loading">載入中...</div>';
+            loadStats();
+        }
+
+        // 刷新文章
+        function refreshArticles() {
+            document.getElementById('articles-list').innerHTML = '<div class="loading">載入中...</div>';
+            loadArticles();
+        }
+
+        // 健康檢查
+        function checkHealth() {
+            fetch('/health')
+                .then(response => {
+                    if (response.ok) {
+                        alert('✅ 系統健康狀態正常');
+                    } else {
+                        alert('❌ 系統健康檢查失敗');
+                    }
+                })
+                .catch(error => {
+                    alert('❌ 無法連接到系統');
+                });
+        }
+
+        // 查看日誌
+        function viewLogs() {
+            alert('📝 日誌位置:\n- 文件: ./logs/pttset.log\n- Docker: docker-compose logs app');
+        }
+
+        // 檢查爬蟲
+        function checkCrawler() {
+            alert('🕷️ 爬蟲狀態:\n- 容器: docker-compose ps crawler\n- 日誌: docker-compose logs crawler');
+        }
+
+        // 格式化時間
+        function formatTime(timeStr) {
+            if (!timeStr) return '未知';
+            const date = new Date(timeStr);
+            return date.toLocaleString('zh-TW');
+        }
+
+        // 頁面載入時執行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+            loadArticles();
+            // 每30秒自動刷新
+            setInterval(loadStats, 30000);
+        });
+    </script>
+</body>
+</html>
+`
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(html))
+}
+
+func statsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	
+	// 獲取數據庫統計
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	stats := map[string]interface{}{
+		"total_articles": 0,
+		"today_articles": 0,
+		"week_articles":  0,
+		"last_update":    time.Now().Format(time.RFC3339),
+	}
+	
+	// 嘗試獲取實際統計數據
+	if meta.Collection != nil {
+		if count, err := meta.Collection.CountDocuments(ctx, bson.M{}); err == nil {
+			stats["total_articles"] = count
+		}
+		
+		// 今日文章數
+		today := time.Now().Truncate(24 * time.Hour)
+		todayTimestamp := int(today.Unix())
+		if count, err := meta.Collection.CountDocuments(ctx, bson.M{"timestamp": bson.M{"$gte": todayTimestamp}}); err == nil {
+			stats["today_articles"] = count
+		}
+		
+		// 本週文章數
+		weekAgo := time.Now().AddDate(0, 0, -7)
+		weekTimestamp := int(weekAgo.Unix())
+		if count, err := meta.Collection.CountDocuments(ctx, bson.M{"timestamp": bson.M{"$gte": weekTimestamp}}); err == nil {
+			stats["week_articles"] = count
+		}
+	}
+	
+	json.NewEncoder(w).Encode(stats)
+}
+
+func articlesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	
+	// 獲取查詢參數
+	limitStr := r.URL.Query().Get("limit")
+	limit := 20
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+	
+	// 獲取最新文章
+	var articles []models.ArticleDocument
+	if meta.Collection != nil {
+		articles, _ = controllers.Get(meta.Collection, 0, limit)
+	}
+	
+	json.NewEncoder(w).Encode(articles)
 }
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {

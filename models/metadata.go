@@ -2,17 +2,18 @@ package models
 
 import (
 	"encoding/json"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
 	"log"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 
 
 type Model struct {
-	Session                *mgo.Session
-	Collection             *mgo.Collection
-	CollectionUserFavorite *mgo.Collection
+	MongoClient            *mongo.Client
+	Database               *mongo.Database
+	Collection             *mongo.Collection
+	CollectionUserFavorite *mongo.Collection
 	Log                    *log.Logger
 }
 
@@ -25,47 +26,22 @@ type MessageCount struct {
 }
 
 type ArticleDocument struct {
-	ID           bson.ObjectId `bson:"_id,omitempty"`
-	ArticleID    string        `json:"article_id" bson:"article_id"`
-	ArticleTitle string        `json:"article_title" bson:"article_title"`
-	Author       string        `json:"author" bson:"author"`
-	Board        string        `json:"board" bson:"board"`
-	Content      string        `json:"content" bson:"content"`
-	Date         string        `json:"date" bson:"date"`
-	IP           string        `json:"ip" bson:"ip"`
-	MessageCount MessageCount  `bson:"message_count"`
-	Messages     []interface{} `json:"messages" bson:"messages"`
-	Timestamp    int           `json:"timestamp" bson:"timestamp"`
-	URL          string        `json:"url" bson:"url"`
-	ImageLinks   []string      `json:"image_links" bson:"image_links"`
+	ID           primitive.ObjectID `bson:"_id,omitempty"`
+	ArticleID    string             `json:"article_id" bson:"article_id"`
+	ArticleTitle string             `json:"article_title" bson:"article_title"`
+	Author       string             `json:"author" bson:"author"`
+	Board        string             `json:"board" bson:"board"`
+	Content      string             `json:"content" bson:"content"`
+	Date         string             `json:"date" bson:"date"`
+	IP           string             `json:"ip" bson:"ip"`
+	MessageCount MessageCount       `bson:"message_count"`
+	Messages     []interface{}      `json:"messages" bson:"messages"`
+	Timestamp    int                `json:"timestamp" bson:"timestamp"`
+	URL          string             `json:"url" bson:"url"`
+	ImageLinks   []string           `json:"image_links" bson:"image_links"`
 }
 
-func (d *ArticleDocument) GeneralQueryOne(collection *mgo.Collection, query interface{}) (result *ArticleDocument, err error) {
-	result = &ArticleDocument{}
-	if err := collection.Find(query).One(result); err != nil {
-		return nil, err
-	} else {
-		return result, nil
-	}
-}
-
-func (d *ArticleDocument) GeneralQueryAll(collection *mgo.Collection, query interface{}, sortBy string, count int) (results []ArticleDocument, err error) {
-	results = []ArticleDocument{}
-	if sortBy == "" {
-		if err := collection.Find(query).All(&results); err != nil {
-			return nil, err
-		} else {
-			return results, nil
-		}
-	} else {
-		if err := collection.Find(query).Sort(sortBy).Limit(count).All(&results); err != nil {
-			return nil, err
-		} else {
-			return results, nil
-		}
-	}
-
-}
+// Note: These methods will be replaced with new MongoDB driver implementations in controllers
 
 func (d *ArticleDocument) ToString() (info string) {
 	b, err := json.Marshal(d)
