@@ -12,9 +12,10 @@ import (
 	"strings"
 
 	"github.com/line/line-bot-sdk-go/linebot"
-	"github.com/mong0520/linebot-ptt-beauty/controllers"
-	"github.com/mong0520/linebot-ptt-beauty/models"
-	"github.com/mong0520/linebot-ptt-beauty/utils"
+	"github.com/mong0520/linebot-ptt-set/admin"
+	"github.com/mong0520/linebot-ptt-set/controllers"
+	"github.com/mong0520/linebot-ptt-set/models"
+	"github.com/mong0520/linebot-ptt-set/utils"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -29,23 +30,23 @@ var oneMonthInSec = oneDayInSec * 30
 var oneYearInSec = oneMonthInSec * 365
 
 const (
-	DefaultTitle string = "💋表特看看"
+	DefaultTitle string = "🔥 SET 看看"
 
 	ActionQuery       string = "一般查詢"
-	ActionNewest      string = "🎊 最新表特"
+	ActionNewest      string = "🎊 最新文章"
 	ActionDailyHot    string = "📈 本日熱門"
 	ActionMonthlyHot  string = "🔥 近期熱門"
 	ActionYearHot     string = "🏆 年度熱門"
-	ActionRandom      string = "👩 隨機十連抽"
+	ActionRandom      string = "🎲 隨機十連抽"
 	ActionAddFavorite string = "加入最愛"
 	ActionClick       string = "👉 點我打開"
-	ActionHelp        string = "表特選單"
+	ActionHelp        string = "SET 選單"
 	ActionAllImage    string = "👁️ 預覽圖片"
 	ActonShowFav      string = "❤️ 我的最愛"
 	ActonRunCC        string = "/cc"
 	ModeHTTP          string = "http"
 	ModeHTTPS         string = "https"
-	AltText           string = "正妹只在手機上"
+	AltText           string = "內容只在手機上"
 )
 
 func InitLineBot(m *models.Model, runMode string, sslCertPath string, sslPKeyPath string) {
@@ -61,6 +62,9 @@ func InitLineBot(m *models.Model, runMode string, sslCertPath string, sslPKeyPat
 	//log.Println("Bot:", bot, " err:", err)
 	http.HandleFunc("/callback", callbackHandler)
 	http.HandleFunc("/health", healthHandler)
+	
+	// 初始化管理面板
+	admin.InitAdmin(meta)
 	port := os.Getenv("PORT")
 	//port := "8080"
 	addr := fmt.Sprintf(":%s", port)
@@ -252,10 +256,10 @@ func actionGeneral(event *linebot.Event, action string, values url.Values) {
 		tsOffset, _ := strconv.Atoi(values.Get("period"))
 		meta.Log.Println("timestampe off set = ", tsOffset)
 		records, _ = controllers.GetMostLike(meta.Collection, maxCountOfCarousel, tsOffset)
-		label = "已幫您查詢到一些照片~"
+		label = "已幫您查詢到一些文章~"
 	case ActionRandom:
 		records, _ = controllers.GetRandom(meta.Collection, maxCountOfCarousel, "")
-		label = "隨機表特已送到囉"
+		label = "隨機文章已送到囉"
 	default:
 		return
 	}
@@ -313,7 +317,7 @@ func actionNewest(event *linebot.Event, values url.Values) {
 		)
 		template.Columns = append(template.Columns, tmpColumn)
 
-		sendCarouselMessage(event, template, "熱騰騰的最新照片送到了!")
+		sendCarouselMessage(event, template, "熱騰騰的最新文章送到了!")
 	}
 }
 

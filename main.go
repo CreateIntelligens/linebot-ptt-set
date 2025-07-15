@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mong0520/linebot-ptt-beauty/bots"
-	"github.com/mong0520/linebot-ptt-beauty/models"
-	"github.com/mong0520/linebot-ptt-beauty/utils"
+	"github.com/mong0520/linebot-ptt-set/bots"
+	"github.com/mong0520/linebot-ptt-set/models"
+	"github.com/mong0520/linebot-ptt-set/utils"
 	"gopkg.in/mgo.v2"
 )
 
@@ -35,7 +35,7 @@ func initDB(dbURI string, enableSSL bool) {
 		logger.Fatalln("Unable to connect DB", err)
 	} else {
 		meta.Session = session
-		meta.Collection = session.DB("ptt").C("beauty")
+		meta.Collection = session.DB("ptt").C("set")
 		meta.CollectionUserFavorite = session.DB("ptt").C("users")
 	}
 }
@@ -62,7 +62,7 @@ func main() {
 }
 
 func initLogFile() (logFile *os.File, err error) {
-	logfilename := "pttbeauty.log"
+	logfilename := "pttset.log"
 	logFileName := path.Base(logfilename)
 	logFilePath := path.Join(logRoot, logFileName)
 	if _, err := os.Stat(logRoot); os.IsNotExist(err) {

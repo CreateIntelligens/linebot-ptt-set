@@ -1,9 +1,9 @@
-FROM golang:latest
+FROM golang:1.21-alpine
 
-WORKDIR $GOPATH/src/mong0520/linebot-ptt-beauty
-COPY . $GOPATH/src/mong0520/linebot-ptt-beauty
+WORKDIR $GOPATH/src/mong0520/linebot-ptt-set
+COPY . $GOPATH/src/mong0520/linebot-ptt-set
 RUN GO111MODULE=on go build
 
-EXPOSE 5000
-ENTRYPOINT ["./linebot-ptt-beauty"]
-CMD ["./linebot-ptt-beauty"]
+EXPOSE 5050
+ENTRYPOINT ["./linebot-ptt-set"]
+CMD ["./linebot-ptt-set"]

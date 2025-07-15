@@ -21,3 +21,12 @@ vendor/*/
 build.sh
 
 .env
+logs/
+
+# Data directories
+data/
+*.json
+*.json.old*
+
+# Temporary files
+tmp_*

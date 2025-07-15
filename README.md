@@ -1,4 +1,4 @@
-# 表特看看 - Line 聊天機器人 for PTT Beauty
+# 表特看看 - Line 聊天機器人 for PTT SET
 
 ## For User
 

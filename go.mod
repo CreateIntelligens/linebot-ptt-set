@@ -1,4 +1,4 @@
-module github.com/mong0520/linebot-ptt-beauty
+module github.com/mong0520/linebot-ptt-set
 
 go 1.12
 

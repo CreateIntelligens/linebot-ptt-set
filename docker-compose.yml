@@ -1,17 +1,57 @@
-version: '3'
+version: '3.8'
 services:
   app:
     build: .
+    restart: unless-stopped
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+      crawler:
+        condition: service_started
     ports:
-      - "5000:5000"
+      - "5050:5050"
     env_file:
       - .env
+    networks:
+      - app-network
+
   mongodb:
     container_name: mongo
+    restart: unless-stopped
     image: mongo:latest
     ports:
         - "27017:27017"
     volumes:
         - "./data/mongo/data:/data/db"
+    environment:
+        - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-ptt}
+    command: mongod --bind_ip_all --noauth
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  crawler:
+    build: ./crawler
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGODB_HOST=mongo
+      - MONGODB_PORT=27017
+      - MONGODB_DB=ptt
+      - PAGE_OFFSET=10
+      - RUN_IMMEDIATELY=true
+    volumes:
+      - "./data/crawler:/app/data"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

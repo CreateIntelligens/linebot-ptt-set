@@ -3,13 +3,13 @@ package controllers
 import (
 	"errors"
 	"fmt"
-	"github.com/mong0520/linebot-ptt-beauty/models"
+	"github.com/mong0520/linebot-ptt-set/models"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"strings"
 	"time"
 	"sort"
-	"github.com/mong0520/linebot-ptt-beauty/utils"
+	"github.com/mong0520/linebot-ptt-set/utils"
 )
 
 type UserFavorite struct {
@@ -30,7 +30,7 @@ func GetOne(collection *mgo.Collection, query bson.M) (result *models.ArticleDoc
 }
 
 func Get(collection *mgo.Collection, page int, perPage int) (results []models.ArticleDocument, err error) {
-	query := bson.M{"article_title": bson.M{"$regex": bson.RegEx{"^\\[正妹\\].*", ""}}}
+	query := bson.M{"article_title": bson.M{"$regex": bson.RegEx{".*", ""}}}
 	//document := &models.ArticleDocument{}
 	//results, err = document.GeneralQueryAll(collection, query, "", -1)
 	err = collection.Find(query).Sort("-timestamp").Skip(page*perPage).Limit(perPage).All(&results)
@@ -65,7 +65,7 @@ func GetRandom(collection *mgo.Collection, count int, keyword string) (results [
 	baseline_ts := 1420070400 // 2015年Jan/1/00:00:00 之後
 	needRandom := true
 	if keyword == "" {
-		query = bson.M{"timestamp": bson.M{"$gte": baseline_ts}, "article_title": bson.M{"$regex": bson.RegEx{"^\\[正妹\\].*", ""}}}
+		query = bson.M{"timestamp": bson.M{"$gte": baseline_ts}, "article_title": bson.M{"$regex": bson.RegEx{"^(?!\\[公告\\]).*", ""}}}
 	} else {
 		query = bson.M{
 			"timestamp":     bson.M{"$gte": baseline_ts},
@@ -120,9 +120,9 @@ func GetMostLike(collection *mgo.Collection, count int, timestampOffset int) (re
 		nowInSec := int(now.Unix())
 		start := nowInSec - timestampOffset
 		//{"timestamp": {"$gte":  1, "$lt": 9999999999}}
-		query = bson.M{"timestamp": bson.M{"$gte": start, "$lt": nowInSec}, "article_title": bson.M{"$regex": bson.RegEx{"^\\[正妹\\].*", ""}}}
+		query = bson.M{"timestamp": bson.M{"$gte": start, "$lt": nowInSec}, "article_title": bson.M{"$regex": bson.RegEx{"^(?!\\[公告\\]).*", ""}}}
 	} else {
-		query = bson.M{"article_title": bson.M{"$regex": bson.RegEx{"^\\[正妹\\].*", ""}}}
+		query = bson.M{"article_title": bson.M{"$regex": bson.RegEx{"^(?!\\[公告\\]).*", ""}}}
 	}
 	results, err = document.GeneralQueryAll(collection, query, "-message_count.push", count)
 	if err != nil {
