@@ -31,8 +31,11 @@ COPY start_cron.sh /app/start_cron.sh
 # 給腳本執行權限
 RUN chmod +x /app/run_crawler.sh /app/start_cron.sh
 
-# 創建 cron job
-RUN echo "0 * * * * /app/run_crawler.sh >> /var/log/crawler.log 2>&1" | crontab -
+# 創建 cron job 並設定環境變數
+RUN echo "PATH=/usr/local/bin:/usr/bin:/bin" > /etc/cron.d/crawler-cron && \
+    echo "0 * * * * root /app/run_crawler.sh >> /var/log/crawler.log 2>&1" >> /etc/cron.d/crawler-cron && \
+    chmod 0644 /etc/cron.d/crawler-cron && \
+    crontab /etc/cron.d/crawler-cron
 
 # 創建日誌文件
 RUN touch /var/log/crawler.log

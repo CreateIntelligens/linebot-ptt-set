@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# 設定環境變數
+# 設定環境變數和 PATH（cron 環境需要）
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 export MONGODB_HOST=${MONGODB_HOST:-mongo}
 export MONGODB_PORT=${MONGODB_PORT:-27017}
 export MONGODB_DB=${MONGODB_DB:-ptt}
